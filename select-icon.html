@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset='utf-8' />
+    <title>Select icons in a map</title>
+    <meta name='viewport' content='initial-scale=1,maximum-scale=1,user-scalable=no' />
+    <script src='https://api.tiles.mapbox.com/mapbox-gl-js/v1.3.0/mapbox-gl.js'></script>
+    <link href='https://api.tiles.mapbox.com/mapbox-gl-js/v1.3.0/mapbox-gl.css' rel='stylesheet' />
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+        #map {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            width: 100%;
+        }
+    </style>
+</head>
+
+<body>
+
+    <style>
+
+    </style>
+
+    <div id='map'></div>
+
+    <script>
+        function initPage(mapboxgl) {
+            var isDraggable = false;
+            var selectedSymbol = {};
+            mapboxgl.accessToken = 'pk.eyJ1IjoicGxheW1hcHMiLCJhIjoiY2pxdW91Mmt3MGRiajQ0bXF0bjNkZGlzNiJ9.D8WVzHCcxCgZYCkB7M-XWQ';
+
+            var map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/streets-v11',
+                center: [-65.017, -16.457],
+                zoom: 7
+            });
+
+            let findInCanvas = (e) => {
+                var layerX = e.layerX;
+                var layerY = e.layerY;
+
+                var features = map.queryRenderedFeatures([layerX, layerY], {});
+
+                if (features && features.length > 0) {
+                    var symbols = getSymbolsWithPoint(features);
+
+                    if (symbols.length > 0) {
+                        if (selectedSymbol !== symbols[(symbols.length - 1)]) {
+                            isDraggable = true;
+                            if (canvas.style.cursor == '' || canvas.style.cursor == 'auto') {
+                                canvas.style.cursor = 'pointer';
+                            }
+                            selectedSymbol = symbols[(symbols.length - 1)];
+                            map.on('click', symbolSelected);
+                        }
+                    }
+                    else
+                        clearSelectedSymbol();
+                }
+                else
+                    clearSelectedSymbol();
+            };
+
+            let clearSelectedSymbol = () => {
+                if (isDraggable) {
+                    isDraggable = false;
+                    selectedSymbol = null;
+                    canvas.style.cursor = 'auto';
+                    map.off('click', symbolSelected);
+                }
+            };
+
+            let symbolSelected = (e) => {
+
+                if (selectedSymbol == null) {
+                    return;
+                }
+                map.off('click', symbolSelected);
+                canvas.removeEventListener('mousemove', findInCanvas);
+
+                addPopup(selectedSymbol);
+                selectedSymbol = null;
+
+                map.on('click', symbolSelected);
+                canvas.addEventListener('mousemove', findInCanvas);
+            }
+
+            let createSource = (feature) => {
+                return {
+                    type: "geojson",
+                    data: feature
+                }
+            }
+
+            let createLayer = (sourceName, feature) => {                                
+                return {
+                    "id": sourceName,
+                    "source": sourceName,
+                    "type": "symbol",
+                    "layout": feature.layout
+                };
+            }
+
+            function getSymbolsWithPoint(array) {
+                var symbols = [];
+
+                for (var i = array.length - 1; i > - 1; i--) {
+                    if (array[i].layer.type === "symbol"
+                        && (array[i].geometry.type === "Point"
+                            || array[i].geometry.type === "Polygon"))
+                        symbols.push(array[i]);
+                }
+
+                return symbols;
+            }
+
+            function addPopup(selectedFeature) {
+                var pointId = "point" + selectedFeature.id + "." + Math.random() * 10;
+                if (!map.getSource(pointId)) {
+                    map.addSource(pointId, createSource(selectedFeature));
+                    map.addLayer(createLayer(pointId, selectedFeature.layer));
+                
+                    map.on('click', pointId, (e) => {                        
+                        var popup = new mapboxgl.Popup({ closeButton: true })
+                            .setLngLat(e.lngLat)
+                            .setText(selectedFeature.layer["source-layer"] + " layer")
+                            .addTo(map);                    
+                        if (e.originalEvent.stopPropagation) {
+                            e.originalEvent.stopPropagation();
+                        }
+                        e.preventDefault();
+                        return false;
+                    });
+                }
+            }
+
+            var canvas = map.getCanvas();
+            canvas.addEventListener('mousemove', findInCanvas);
+        };
+
+        initPage(mapboxgl);
+    </script>
+
+</body>
+
+</html>
